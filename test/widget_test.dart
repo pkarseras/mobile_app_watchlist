@@ -7,24 +7,38 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-
+import 'package:watchlist/database.dart';
 import 'package:watchlist/main.dart';
 
 void main() {
+  late AppDatabase database;
+  late MovieDao movieDao;
+
+  setUp(() async {
+    database = await $FloorAppDatabase.inMemoryDatabaseBuilder().build();
+    movieDao = database.movieDao;
+  });
+
+  tearDown(() async {
+    await database.close();
+  });
+
   testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+    await tester.runAsync(() async {
+      // Build our app and trigger a frame.
+      await tester.pumpWidget(MyApp(movieDao));
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+      // Verify that our counter starts at 0.
+      expect(find.text('0'), findsOneWidget);
+      expect(find.text('1'), findsNothing);
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
+      // Tap the '+' icon and trigger a frame.
+      await tester.tap(find.byIcon(Icons.add));
+      await tester.pump();
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+      // Verify that our counter has incremented.
+      expect(find.text('0'), findsNothing);
+      expect(find.text('1'), findsOneWidget);
+    });
   });
 }
