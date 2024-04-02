@@ -5,15 +5,24 @@ import 'package:http/http.dart' as http;
 import 'package:json_annotation/json_annotation.dart';
 
 import 'api_key.dart';
+import 'database.dart';
 
 part 'main.g.dart';
 
-void main() {
-  runApp(const MyApp());
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  final database = await $FloorAppDatabase.databaseBuilder('app_database.db').build();
+
+  final dao = database.movieDao;
+
+  runApp(MyApp(dao));
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  final MovieDao dao;
+
+  const MyApp(this.dao, {super.key});
 
   // This widget is the root of your application.
   @override
@@ -24,14 +33,15 @@ class MyApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
         useMaterial3: true,
       ),
-      home: const MyHomePage(title: 'Movie watchlist'),
+      home: MyHomePage(title: 'Movie watchlist', dao: dao),
     );
   }
 }
 
 class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
+  const MyHomePage({super.key, required this.title, required this.dao});
 
+  final MovieDao dao;
   final String title;
 
   @override
@@ -41,19 +51,17 @@ class MyHomePage extends StatefulWidget {
 class _MyHomePageState extends State<MyHomePage> {
   int _selectedIndex = 0;
 
-  final List<Widget> _tabs = [
-    Discover(),
-    const TabScreen(title: 'Tab 2'),
-    const TabScreen(title: 'Tab 3'),
-  ];
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Movie watchlist'),
       ),
-      body: _tabs[_selectedIndex],
+      body: switch (_selectedIndex) {
+        0 => TabDiscover(dao: widget.dao),
+        1 => TabWatchlist(dao: widget.dao),
+        int() => null,
+      },
       drawer: Drawer(
         child: ListView(
           padding: EdgeInsets.zero,
@@ -81,13 +89,6 @@ class _MyHomePageState extends State<MyHomePage> {
               title: const Text('Watchlist'),
               onTap: () {
                 _selectTab(1);
-                Navigator.pop(context);
-              },
-            ),
-            ListTile(
-              title: const Text('Watched'),
-              onTap: () {
-                _selectTab(2);
                 Navigator.pop(context);
               },
             ),
@@ -160,7 +161,11 @@ class Movies {
   Map<String, dynamic> toJson() => _$MoviesToJson(this);
 }
 
-class Discover extends StatelessWidget {
+class TabDiscover extends StatelessWidget {
+  final MovieDao dao;
+
+  const TabDiscover({super.key, required this.dao});
+
   Future<List<Movie>> _getTMDBPopular() async {
     final String baseUrl = 'https://api.themoviedb.org/3';
     final String popularUrl = '$baseUrl/movie/popular?api_key=$tmdbApiKey';
@@ -183,16 +188,15 @@ class Discover extends StatelessWidget {
           builder: (BuildContext context, AsyncSnapshot<List<Movie>> snapshot) {
             if (snapshot.connectionState != ConnectionState.done) {
               return const CircularProgressIndicator();
-            } else {
-              if (snapshot.hasData) {
-                return ListView(
-                  children: snapshot.data!
-                      .map((a) => ListTile(title: Text(a.title), subtitle: Text('Score: ${a.vote_average.toString()}')))
-                      .toList(),
-                );
-              }
-              return Container();
+            } else if (snapshot.hasData) {
+              return ListView(
+                children: snapshot.data!
+                    .map((a) => ExpandableListItemDiscover(
+                        title: a.title, subtitle: 'Score: ${a.vote_average.toString()}', id: a.id, dao: dao))
+                    .toList(),
+              );
             }
+            return Container();
           },
         ),
       ),
@@ -200,62 +204,160 @@ class Discover extends StatelessWidget {
   }
 }
 
-class TabScreen extends StatelessWidget {
-  final String title;
+class TabWatchlist extends StatefulWidget {
+  final MovieDao dao;
 
-  const TabScreen({Key? key, required this.title}) : super(key: key);
+  TabWatchlist({super.key, required this.dao});
+
+  List<MovieEntity> watchlist = [];
+
+  @override
+  State<StatefulWidget> createState() => _TabWatchlistState();
+}
+
+class _TabWatchlistState extends State<TabWatchlist> {
+  Future<List<MovieEntity>> _getWatchlist() async {
+    var _watchlist = await widget.dao.getAllMovies();
+    final List<MovieEntity> movies = [];
+
+    for (var item in _watchlist) {
+      movies.add(MovieEntity(item.id, item.title));
+    }
+    return movies;
+  }
+
+  void _loadWatchlist() async {
+    var watchlist = await _getWatchlist();
+    setState(() {
+      widget.watchlist = watchlist;
+    });
+  }
+
+  @override
+  void initState() {
+    _loadWatchlist();
+    super.initState();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Text(
-        title,
-        style: const TextStyle(fontSize: 24),
+    return Scaffold(
+      body: Center(
+        child: ListView(
+          children: [
+            for (var a in widget.watchlist)
+              ExpandableListItemWatchlist(title: a.title, id: a.id, dao: widget.dao, update_method: _loadWatchlist)
+          ],
+        ),
       ),
     );
   }
 }
-//
-// class ExpandableListItem extends StatefulWidget {
-//   final String title;
-//
-//   const ExpandableListItem({Key? key, required this.title}) : super(key: key);
-//
-//   @override
-//   _ExpandableListItemState createState() => _ExpandableListItemState();
-// }
-//
-// class _ExpandableListItemState extends State<ExpandableListItem> {
-//   bool _isExpanded = false;
-//
-//   @override
-//   Widget build(BuildContext context) {
-//     return ExpansionTile(
-//       title: Text(widget.title),
-//       children: <Widget>[
-//         Row(
-//           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-//           children: <Widget>[
-//             ElevatedButton(
-//               onPressed: () {
-//                 // Handle button 1 tap
-//               },
-//               child: Text('Button 1'),
-//             ),
-//             ElevatedButton(
-//               onPressed: () {
-//                 // Handle button 2 tap
-//               },
-//               child: Text('Button 2'),
-//             ),
-//           ],
-//         ),
-//       ],
-//       onExpansionChanged: (bool expanded) {
-//         setState(() {
-//           _isExpanded = expanded;
-//         });
-//       },
-//     );
-//   }
-// }
+
+// ListView(
+// children: snapshot.data!
+//     .map((a) =>
+// ExpandableListItemWatchlist(
+// title: a.title, id: a.id, dao: dao))
+//     .toList(),
+class ExpandableListItemDiscover extends StatefulWidget {
+  final String title;
+  final String subtitle;
+  final int id;
+  final MovieDao dao;
+
+  const ExpandableListItemDiscover(
+      {Key? key, required this.title, required this.subtitle, required this.id, required this.dao})
+      : super(key: key);
+
+  @override
+  _ExpandableListItemDiscoverState createState() => _ExpandableListItemDiscoverState();
+}
+
+class _ExpandableListItemDiscoverState extends State<ExpandableListItemDiscover> {
+  bool _isExpanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return ExpansionTile(
+      title: Text(widget.title),
+      subtitle: Text(widget.subtitle),
+      children: <Widget>[
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: <Widget>[
+            ElevatedButton(
+              onPressed: () async {
+                final movie_entity = MovieEntity(widget.id, widget.title);
+                await widget.dao.insertMovie(movie_entity);
+              },
+              child: const Text('Add to watchlist'),
+            ),
+            // ElevatedButton(
+            //   onPressed: () {
+            //     // Handle button 2 tap
+            //   },
+            //   child: const Text('Add to watched'),
+            // ),
+          ],
+        ),
+      ],
+      onExpansionChanged: (bool expanded) {
+        setState(() {
+          _isExpanded = expanded;
+        });
+      },
+    );
+  }
+}
+
+class ExpandableListItemWatchlist extends StatefulWidget {
+  final String title;
+  final int id;
+  final MovieDao dao;
+  late void Function() update_method;
+
+  ExpandableListItemWatchlist(
+      {Key? key, required this.title, required this.id, required this.dao, required this.update_method})
+      : super(key: key);
+
+  @override
+  _ExpandableListItemWatchlistState createState() => _ExpandableListItemWatchlistState();
+}
+
+class _ExpandableListItemWatchlistState extends State<ExpandableListItemWatchlist> {
+  bool _isExpanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return ExpansionTile(
+      title: Text(widget.title),
+      children: <Widget>[
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: <Widget>[
+            ElevatedButton(
+              onPressed: () async {
+                final movie_entity = MovieEntity(widget.id, widget.title);
+                await widget.dao.deleteMovie(movie_entity);
+                widget.update_method();
+              },
+              child: const Text('Remove to watchlist'),
+            ),
+            // ElevatedButton(
+            //   onPressed: () {
+            //     // Handle button 2 tap
+            //   },
+            //   child: const Text('Add to watched'),
+            // ),
+          ],
+        ),
+      ],
+      onExpansionChanged: (bool expanded) {
+        setState(() {
+          _isExpanded = expanded;
+        });
+      },
+    );
+  }
+}

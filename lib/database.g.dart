@@ -108,6 +108,12 @@ class _$MovieDao extends MovieDao {
             database,
             'MovieEntity',
             (MovieEntity item) =>
+                <String, Object?>{'id': item.id, 'title': item.title}),
+        _movieEntityDeletionAdapter = DeletionAdapter(
+            database,
+            'MovieEntity',
+            ['id'],
+            (MovieEntity item) =>
                 <String, Object?>{'id': item.id, 'title': item.title});
 
   final sqflite.DatabaseExecutor database;
@@ -118,8 +124,10 @@ class _$MovieDao extends MovieDao {
 
   final InsertionAdapter<MovieEntity> _movieEntityInsertionAdapter;
 
+  final DeletionAdapter<MovieEntity> _movieEntityDeletionAdapter;
+
   @override
-  Future<List<MovieEntity>> findAllPeople() async {
+  Future<List<MovieEntity>> getAllMovies() async {
     return _queryAdapter.queryList('SELECT * FROM MovieEntity',
         mapper: (Map<String, Object?> row) =>
             MovieEntity(row['id'] as int, row['title'] as String));
@@ -134,5 +142,10 @@ class _$MovieDao extends MovieDao {
   @override
   Future<void> insertMovie(MovieEntity movie) async {
     await _movieEntityInsertionAdapter.insert(movie, OnConflictStrategy.abort);
+  }
+
+  @override
+  Future<void> deleteMovie(MovieEntity movie) async {
+    await _movieEntityDeletionAdapter.delete(movie);
   }
 }

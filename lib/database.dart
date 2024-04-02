@@ -17,13 +17,13 @@ class MovieEntity {
 @dao
 abstract class MovieDao {
   @Query('SELECT * FROM MovieEntity')
-  Future<List<MovieEntity>> findAllPeople();
-
-  @Query('DELETE * FROM MovieEntity WHERE id = :id')
-  Future<void> deleteMovieById(int id);
+  Future<List<MovieEntity>> getAllMovies();
 
   @insert
   Future<void> insertMovie(MovieEntity movie);
+
+  @delete
+  Future<void> deleteMovie(MovieEntity movie);
 }
 
 
