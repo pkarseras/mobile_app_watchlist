@@ -108,7 +108,7 @@ class _MyHomePageState extends State<MyHomePage> {
 @JsonSerializable()
 class Movie {
   final bool adult;
-  final String backdrop_path;
+  final String? backdrop_path;
   final List<int> genre_ids;
   final int id;
   final String original_language;
@@ -172,15 +172,16 @@ class TabDiscover extends StatefulWidget {
 
 class _TabDiscoverState extends State<TabDiscover> {
   bool _error = false;
+  int _page = 1;
 
-  Future<List<Movie>> _getTMDBPopular() async {
+  Future<Movies?> _getTMDBPopular(int page) async {
     final String baseUrl = 'https://api.themoviedb.org/3';
-    final String popularUrl = '$baseUrl/movie/popular?api_key=$tmdbApiKey';
+    final String popularUrl = '$baseUrl/movie/popular?api_key=$tmdbApiKey&page=$page';
 
     try {
       http.Response response = await http.get(Uri.parse(popularUrl));
       if (response.statusCode == 200) {
-        return Movies.fromJson(jsonDecode(response.body)).results;
+        return Movies.fromJson(jsonDecode(response.body));
       } else {
         throw Exception('Failed to load popular movies');
       }
@@ -188,17 +189,31 @@ class _TabDiscoverState extends State<TabDiscover> {
       setState(() {
         _error = true;
       });
-      return [];
     }
+    return null;
+  }
+
+  void _next_page() {
+    setState(() {
+      _page++;
+    });
+    debugPrint('page: $_page');
+  }
+
+  void _previous_page() {
+    setState(() {
+      _page--;
+    });
+    debugPrint('page: $_page');
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: Center(
-        child: FutureBuilder<List<Movie>>(
-          future: _getTMDBPopular(),
-          builder: (BuildContext context, AsyncSnapshot<List<Movie>> snapshot) {
+        child: FutureBuilder<Movies?>(
+          future: _getTMDBPopular(_page),
+          builder: (BuildContext context, AsyncSnapshot<Movies?> snapshot) {
             if (_error) {
               return const Row(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -214,11 +229,41 @@ class _TabDiscoverState extends State<TabDiscover> {
             } else if (snapshot.connectionState != ConnectionState.done) {
               return const CircularProgressIndicator();
             } else if (snapshot.hasData) {
-              return ListView(
-                children: snapshot.data!
-                    .map((a) => ExpandableListItemDiscover(
-                        title: a.title, subtitle: 'Score: ${a.vote_average.toString()}', id: a.id, dao: widget.dao))
-                    .toList(),
+              return Column(
+                children: [
+                  Expanded(
+                    child: ListView.builder(
+                      itemCount: snapshot.data!.results.length,
+                      itemBuilder: (BuildContext context, int index) {
+                        return ExpandableListItemDiscover(
+                          title: snapshot.data!.results[index].title,
+                          subtitle: 'Score: ${snapshot.data!.results[index].vote_average.toString()}',
+                          id: snapshot.data!.results[index].id,
+                          dao: widget.dao,
+                        );
+                      },
+                    ),
+                  ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center, // Align buttons horizontally at the center
+                    children: [
+                      ElevatedButton(
+                        onPressed: (snapshot.data!.page != 1)
+                            ? () {
+                                _previous_page();
+                              }
+                            : null,
+                        child: Text('Previous'),
+                      ),
+                      ElevatedButton(
+                        onPressed: () {
+                          _next_page();
+                        },
+                        child: Text('Next'),
+                      ),
+                    ],
+                  ),
+                ],
               );
             }
             return Container();

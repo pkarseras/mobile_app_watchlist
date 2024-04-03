@@ -134,12 +134,6 @@ class _$MovieDao extends MovieDao {
   }
 
   @override
-  Future<void> deleteMovieById(int id) async {
-    await _queryAdapter.queryNoReturn('DELETE * FROM MovieEntity WHERE id = ?1',
-        arguments: [id]);
-  }
-
-  @override
   Future<void> insertMovie(MovieEntity movie) async {
     await _movieEntityInsertionAdapter.insert(movie, OnConflictStrategy.abort);
   }
