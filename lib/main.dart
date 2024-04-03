@@ -161,21 +161,34 @@ class Movies {
   Map<String, dynamic> toJson() => _$MoviesToJson(this);
 }
 
-class TabDiscover extends StatelessWidget {
+class TabDiscover extends StatefulWidget {
   final MovieDao dao;
 
   const TabDiscover({super.key, required this.dao});
+
+  @override
+  State<TabDiscover> createState() => _TabDiscoverState();
+}
+
+class _TabDiscoverState extends State<TabDiscover> {
+  bool _error = false;
 
   Future<List<Movie>> _getTMDBPopular() async {
     final String baseUrl = 'https://api.themoviedb.org/3';
     final String popularUrl = '$baseUrl/movie/popular?api_key=$tmdbApiKey';
 
-    http.Response response = await http.get(Uri.parse(popularUrl));
-
-    if (response.statusCode == 200) {
-      return Movies.fromJson(jsonDecode(response.body)).results;
-    } else {
-      throw Exception('Failed to load popular movies');
+    try {
+      http.Response response = await http.get(Uri.parse(popularUrl));
+      if (response.statusCode == 200) {
+        return Movies.fromJson(jsonDecode(response.body)).results;
+      } else {
+        throw Exception('Failed to load popular movies');
+      }
+    } on Exception {
+      setState(() {
+        _error = true;
+      });
+      return [];
     }
   }
 
@@ -186,13 +199,25 @@ class TabDiscover extends StatelessWidget {
         child: FutureBuilder<List<Movie>>(
           future: _getTMDBPopular(),
           builder: (BuildContext context, AsyncSnapshot<List<Movie>> snapshot) {
-            if (snapshot.connectionState != ConnectionState.done) {
+            if (_error) {
+              return const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text('Internet error', style: TextStyle(fontSize: 14, color: Colors.red)),
+                  Icon(
+                    Icons.error,
+                    color: Colors.red,
+                    size: 32,
+                  )
+                ],
+              );
+            } else if (snapshot.connectionState != ConnectionState.done) {
               return const CircularProgressIndicator();
             } else if (snapshot.hasData) {
               return ListView(
                 children: snapshot.data!
                     .map((a) => ExpandableListItemDiscover(
-                        title: a.title, subtitle: 'Score: ${a.vote_average.toString()}', id: a.id, dao: dao))
+                        title: a.title, subtitle: 'Score: ${a.vote_average.toString()}', id: a.id, dao: widget.dao))
                     .toList(),
               );
             }
